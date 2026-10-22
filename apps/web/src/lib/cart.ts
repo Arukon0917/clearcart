@@ -1,4 +1,4 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { isSelectable, type CartView } from "@clearcart/shared";
 import { api } from "./api";
 import { useAuth } from "./auth";
@@ -116,4 +116,42 @@ export function useCartCount(): number {
   const guestCount = useGuestCart((s) => s.lines.reduce((n, l) => n + l.qty, 0));
   const server = useQuery({ queryKey: cartKey(user?.id), queryFn: api.cart, enabled: user?.role === "BUYER", staleTime: 0 });
   return user ? (server.data?.count ?? 0) : guestCount;
+}
+
+/** The guest's ticked lines, kept across the login a guest checkout needs. */
+const CHECKOUT_PICK_KEY = "cc_checkout_pick";
+
+export function saveCheckoutPick(lines: { productId: string; size: string | null }[]): void {
+  try {
+    localStorage.setItem(CHECKOUT_PICK_KEY, JSON.stringify(lines.map(guestLineId)));
+  } catch {
+    // Storage blocked: the merged cart keeps its own selection instead.
+  }
+}
+
+function takeCheckoutPick(): string[] {
+  try {
+    const raw = localStorage.getItem(CHECKOUT_PICK_KEY);
+    localStorage.removeItem(CHECKOUT_PICK_KEY);
+    const ids: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * After the guest cart has been merged: select exactly the lines the guest ticked (and unselect the
+ * rest), so checkout shows the same items. False when none of them made it into the account cart.
+ */
+export async function applyCheckoutPick(queryClient: QueryClient, userId: string): Promise<boolean> {
+  const pick = new Set(takeCheckoutPick());
+  const key = cartKey(userId);
+  const view = queryClient.getQueryData<CartView>(key) ?? (await api.cart());
+  const wanted = view.items.filter((l) => pick.has(guestLineId(l)) && isSelectable(l.status)).map((l) => l.id);
+  if (wanted.length === 0) return false;
+  const others = view.items.filter((l) => l.selected && !wanted.includes(l.id)).map((l) => l.id);
+  if (others.length) await api.selectCartItems(others, false);
+  queryClient.setQueryData(key, await api.selectCartItems(wanted, true));
+  return true;
 }

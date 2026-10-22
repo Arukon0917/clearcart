@@ -2,6 +2,7 @@ export type ErrorCode =
   | "VALIDATION_ERROR"
   | "INVALID_CREDENTIALS"
   | "UNAUTHENTICATED"
+  | "LOGIN_REQUIRED"
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"

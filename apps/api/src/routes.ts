@@ -1,4 +1,4 @@
-import { Router, type Response } from "express";
+import { Router, type RequestHandler, type Response } from "express";
 import {
   CartQuoteRequestSchema,
   CheckoutRequestSchema,
@@ -8,8 +8,8 @@ import {
 } from "@clearcart/shared";
 import { parse } from "./middleware/validate";
 import { prisma } from "./db";
-import { notFound } from "./errors";
-import { optionalAuth, optionalUser } from "./middleware/auth";
+import { HttpError, notFound } from "./errors";
+import { currentUser, optionalAuth, optionalUser, requireRole } from "./middleware/auth";
 import { getProductEntry, listProducts } from "./services/catalogService";
 import { checkout, quote } from "./services/checkoutService";
 import { recommendSize } from "./services/fitService";
@@ -57,7 +57,13 @@ routes.post("/cart/quote", async (req, res) => {
   res.json(await quote(items));
 });
 
-// Guests can check out; a logged-in buyer's order is linked to their account.
-routes.post("/checkout", optionalAuth, async (req, res) => {
-  res.status(201).json(await checkout(parse(CheckoutRequestSchema, req.body), optionalUser(res)?.id));
+/** Checkout-specific 401, so the web app can tell a guest to log in rather than "session expired". */
+const requireCheckoutLogin: RequestHandler = (_req, res, next) => {
+  if (!optionalUser(res)) throw new HttpError(401, "Please log in to check out.", undefined, "LOGIN_REQUIRED");
+  next();
+};
+
+// Logged-in buyers only (sellers are already rejected by `rejectSellers` in app.ts, which also resolves the session).
+routes.post("/checkout", optionalAuth, requireCheckoutLogin, requireRole("BUYER"), async (req, res) => {
+  res.status(201).json(await checkout(parse(CheckoutRequestSchema, req.body), currentUser(res)));
 });

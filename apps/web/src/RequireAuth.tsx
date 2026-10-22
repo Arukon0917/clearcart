@@ -20,9 +20,15 @@ export function NotAuthorized() {
 
 /**
  * Guards a route: spinner while the session loads, /login?next= for guests, 403 for the wrong role.
- * With `allowGuest` (shopping pages like the cart) guests pass and the wrong role is sent to its home page.
+ * Shopping pages (cart, checkout) send the wrong role to its home page instead (`redirectOtherRoles`),
+ * and the cart also lets guests in (`allowGuest`).
  */
-export function RequireAuth({ role, allowGuest = false, children }: { role?: Role; allowGuest?: boolean; children: ReactNode }) {
+export function RequireAuth({ role, allowGuest = false, redirectOtherRoles = false, children }: {
+  role?: Role;
+  allowGuest?: boolean;
+  redirectOtherRoles?: boolean;
+  children: ReactNode;
+}) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) {
@@ -36,6 +42,6 @@ export function RequireAuth({ role, allowGuest = false, children }: { role?: Rol
     if (allowGuest) return <>{children}</>;
     return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
   }
-  if (role && user.role !== role) return allowGuest ? <Navigate to={homeFor(user.role)} replace /> : <NotAuthorized />;
+  if (role && user.role !== role) return redirectOtherRoles ? <Navigate to={homeFor(user.role)} replace /> : <NotAuthorized />;
   return <>{children}</>;
 }

@@ -1,15 +1,11 @@
 import { z } from "zod";
-import { CartItemSchema, CartQuoteSchema } from "./cart";
+import { CartQuoteSchema } from "./cart";
 import { AddressInputSchema, NewPaymentMethodSchema } from "./account";
 
 export const CheckoutRequestSchema = z.object({
-  // Exactly one of these: a logged-in buyer's selected cart lines, or a guest's localStorage items.
-  // Either way, the server re-reads every price, stock level and shipping fee itself.
-  items: z.array(CartItemSchema).min(1, "Your cart is empty").max(50).optional(),
-  cartItemIds: z.array(z.string().min(1)).min(1, "Select at least one item").max(100).optional(),
-  contact: z.object({
-    email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email")),
-  }),
+  // The logged-in buyer's selected cart lines; the confirmation goes to the account email.
+  // The server re-reads every price, stock level and shipping fee itself.
+  cartItemIds: z.array(z.string().min(1)).min(1, "Select at least one item").max(100),
   // A saved address (logged in) or a new one, optionally saved to the account.
   shipping: z
     .object({
@@ -26,7 +22,7 @@ export const CheckoutRequestSchema = z.object({
       save: z.boolean().default(false),
     })
     .refine((p) => !p.paymentMethodId !== !p.method, { message: "Choose or enter a payment method", path: ["method"] }),
-}).refine((r) => !r.items !== !r.cartItemIds, { message: "Send either cart item ids or items", path: ["items"] });
+});
 /** What the checkout form sends. */
 export type CheckoutRequest = z.input<typeof CheckoutRequestSchema>;
 /** What the server works with after validation (card number normalised). */

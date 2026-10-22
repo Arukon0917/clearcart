@@ -22,7 +22,7 @@ export const homeFor = (role: Role) => (role === "SELLER" ? "/seller" : "/");
 /** Which role a path needs, if any. Used to vet `?next=` after login. */
 export function roleForPath(path: string): Role | null {
   if (path === "/seller" || path.startsWith("/seller/")) return "SELLER";
-  if (path === "/orders" || path.startsWith("/orders/")) return "BUYER";
+  if (path === "/orders" || path.startsWith("/orders/") || path === "/checkout") return "BUYER";
   return null;
 }
 

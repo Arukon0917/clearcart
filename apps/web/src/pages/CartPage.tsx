@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { CheckCircle2, ImageOff, Minus, Plus, ShoppingCart, Store, Trash2 } from "lucide-react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { CheckCircle2, ImageOff, LogIn, Minus, Plus, ShoppingCart, Store, Trash2, X } from "lucide-react";
 import { isSelectable, type CartLineView, type Order } from "@clearcart/shared";
 import { money } from "../lib/api";
-import { useCart } from "../lib/cart";
+import { saveCheckoutPick, useCart } from "../lib/cart";
 import { ConfirmDialog, ProductImage } from "../components";
 import { CheckoutForm, totals } from "./CheckoutForm";
 
@@ -147,14 +147,53 @@ function useBarHeight() {
   return { ref, height };
 }
 
-function CartList({ cart, onCheckout }: { cart: ReturnType<typeof useCart>; onCheckout: () => void }) {
+/** Where the guest modal sends people: back to the cart, then on to checkout once logged in. */
+const CHECKOUT_LOGIN_QUERY = `?${new URLSearchParams({ next: "/cart", checkout: "1" })}`;
+
+/** Guests can fill a cart but must log in to pay. Their cart (and what's ticked) survives the login. */
+function LoginToCheckoutDialog({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div role="dialog" aria-modal="true" aria-labelledby="login-checkout-title" onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-sm rounded-card bg-surface p-6 text-center shadow-xl">
+        <button type="button" onClick={onClose} aria-label="Close" className="absolute right-3 top-3 rounded p-1 text-muted hover:bg-raised"><X className="size-5" /></button>
+        <LogIn className="mx-auto size-8 text-brand-600" aria-hidden />
+        <h2 id="login-checkout-title" className="mt-2 text-lg font-semibold">Log in to check out</h2>
+        <p className="mt-1 text-sm text-muted">Your cart will be saved.</p>
+        <div className="mt-5 grid gap-2">
+          <Link to={`/login${CHECKOUT_LOGIN_QUERY}`} autoFocus className="rounded-xl bg-brand-600 py-2.5 font-semibold text-on-accent hover:bg-brand-700">Log in</Link>
+          <Link to={`/register${CHECKOUT_LOGIN_QUERY}`} className="rounded-xl border border-line-strong py-2.5 font-semibold hover:bg-subtle">Create account</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CartList({ cart }: { cart: ReturnType<typeof useCart> }) {
+  const navigate = useNavigate();
   const [confirming, setConfirming] = useState(false);
+  const [askLogin, setAskLogin] = useState(false);
   const bar = useBarHeight();
   const items = cart.view!.items;
   const groups = [...items.reduce((m, l) => m.set(l.sellerName, [...(m.get(l.sellerName) ?? []), l]), new Map<string, CartLineView[]>())];
   const selected = items.filter((l) => l.selected && isSelectable(l.status));
   const all = selection(items);
   const t = totals(selected);
+  const checkout = () => {
+    if (cart.isGuest) {
+      // Remembered so the same lines are ticked at checkout after the login merges the cart.
+      saveCheckoutPick(selected);
+      setAskLogin(true);
+    } else {
+      navigate("/checkout");
+      window.scrollTo(0, 0);
+    }
+  };
 
   return (
     <div style={{ paddingBottom: bar.height + 16 }}>
@@ -201,7 +240,7 @@ function CartList({ cart, onCheckout }: { cart: ReturnType<typeof useCart>; onCh
               Items {money(t.subtotalCents)} · Shipping {t.shippingCents ? money(t.shippingCents) : "Free"} · Tax {money(t.taxCents)}
             </p>
           </div>
-          <button type="button" disabled={selected.length === 0} onClick={onCheckout}
+          <button type="button" disabled={selected.length === 0} onClick={checkout}
             className="rounded-xl bg-brand-600 px-6 py-3 font-semibold text-on-accent hover:bg-brand-700 disabled:opacity-50">
             Checkout ({selected.length})
           </button>
@@ -217,6 +256,7 @@ function CartList({ cart, onCheckout }: { cart: ReturnType<typeof useCart>; onCh
           onCancel={() => setConfirming(false)}
         />
       )}
+      {askLogin && <LoginToCheckoutDialog onClose={() => setAskLogin(false)} />}
     </div>
   );
 }
@@ -239,10 +279,6 @@ function Confirmation({ order }: { order: Order }) {
 
 export function CartPage() {
   const cart = useCart();
-  const [step, setStep] = useState<"cart" | "checkout">("cart");
-  const [order, setOrder] = useState<Order | null>(null);
-
-  if (order) return <Confirmation order={order} />;
   if (cart.isPending) return <div className="h-64 animate-pulse rounded-card bg-line" />;
   if (cart.error && !cart.view) {
     return (
@@ -263,9 +299,18 @@ export function CartPage() {
     );
   }
 
-  const selected = items.filter((l) => l.selected && isSelectable(l.status));
-  if (step === "checkout" && selected.length > 0) {
-    return <CheckoutForm cart={cart} lines={selected} onBack={() => setStep("cart")} onPlaced={setOrder} />;
-  }
-  return <CartList cart={cart} onCheckout={() => { setStep("checkout"); window.scrollTo(0, 0); }} />;
+  return <CartList cart={cart} />;
+}
+
+/** /checkout: buyers only (guarded in main.tsx). Pays for the lines ticked in the server cart. */
+export function CheckoutPage() {
+  const cart = useCart();
+  const navigate = useNavigate();
+  const [order, setOrder] = useState<Order | null>(null);
+
+  if (order) return <Confirmation order={order} />;
+  if (cart.isPending) return <div className="h-96 animate-pulse rounded-card bg-line" />;
+  const selected = (cart.view?.items ?? []).filter((l) => l.selected && isSelectable(l.status));
+  if (selected.length === 0) return <Navigate to="/cart" replace />;
+  return <CheckoutForm cart={cart} lines={selected} onBack={() => navigate("/cart")} onPlaced={setOrder} />;
 }

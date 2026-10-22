@@ -17,14 +17,8 @@ describe("API", () => {
     expect(res.body.filters).toMatchObject({ category: "bags", tags: ["waterproof"], sort: "price-asc" });
   });
 
-  it("rejects invalid checkout with field-level issues", async () => {
-    const res = await request(app)
-      .post("/api/checkout")
-      .send({ items: [], contact: { email: "nope" } })
-      .expect(400);
-    expect(res.body.error.code).toBe("VALIDATION_ERROR");
-    expect(res.body.error.fields).toEqual(
-      expect.arrayContaining([expect.objectContaining({ path: "contact.email" })]),
-    );
+  it("checkout without login is a 401 LOGIN_REQUIRED", async () => {
+    const res = await request(app).post("/api/checkout").send({ items: [], contact: { email: "a@b.co" } }).expect(401);
+    expect(res.body.error).toMatchObject({ code: "LOGIN_REQUIRED", message: "Please log in to check out." });
   });
 });

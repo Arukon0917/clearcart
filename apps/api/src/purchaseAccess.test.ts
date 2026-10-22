@@ -21,9 +21,11 @@ const { createApp } = await import("./app");
 const app = createApp();
 
 let sellerCookie = "";
+let buyerCookie = "";
 beforeAll(() => {
   process.env.JWT_SECRET = "test-secret";
   sellerCookie = `cc_at=${jwt.sign({ role: "SELLER" }, "test-secret", { subject: "seller-1", expiresIn: 60 })}`;
+  buyerCookie = `cc_at=${jwt.sign({ role: "BUYER" }, "test-secret", { subject: "buyer-1", expiresIn: 60 })}`;
 });
 
 const expectSellerBlocked = (res: request.Response) => {
@@ -31,7 +33,7 @@ const expectSellerBlocked = (res: request.Response) => {
   expect(res.body.error).toMatchObject({ code: "SELLER_CANNOT_PURCHASE", message: "Seller accounts can't make purchases." });
 };
 
-describe("sellers can't purchase", () => {
+describe("checkout and cart access by role", () => {
   it.each([
     ["get", "/api/cart"],
     ["post", "/api/cart/items"],
@@ -45,8 +47,18 @@ describe("sellers can't purchase", () => {
     expectSellerBlocked(await request(app)[method](path).set("Cookie", sellerCookie).send({}));
   });
 
-  it("guests still reach checkout validation", async () => {
+  it("guests can't check out", async () => {
     const res = await request(app).post("/api/checkout").send({});
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("LOGIN_REQUIRED");
+  });
+
+  it("buyers reach checkout validation, which needs cart item ids", async () => {
+    const res = await request(app)
+      .post("/api/checkout")
+      .set("Cookie", buyerCookie)
+      .send({ items: [{ productId: "p1", size: null, quantity: 1 }], shipping: {}, payment: {} });
     expect(res.status).toBe(400);
+    expect(res.body.error.fields).toEqual(expect.arrayContaining([expect.objectContaining({ path: "cartItemIds" })]));
   });
 });

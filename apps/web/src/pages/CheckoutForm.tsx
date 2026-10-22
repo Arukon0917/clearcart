@@ -94,24 +94,23 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
   onBack: () => void;
   onPlaced: (o: Order) => void;
 }) {
-  const { user } = useAuth();
+  // Only reachable behind <RequireAuth role="BUYER">, so there's always a user.
+  const user = useAuth().user!;
   const queryClient = useQueryClient();
-  const signedIn = Boolean(user) && !cart.isGuest;
-  const addresses = useQuery({ queryKey: ["addresses"], queryFn: api.addresses, enabled: signedIn });
-  const methods = useQuery({ queryKey: ["payment-methods"], queryFn: api.paymentMethods, enabled: signedIn });
+  const addresses = useQuery({ queryKey: ["addresses"], queryFn: api.addresses });
+  const methods = useQuery({ queryKey: ["payment-methods"], queryFn: api.paymentMethods });
 
   // null = "use the default"; NEW = typing a new one.
   const [addressPick, setAddressPick] = useState<string | null>(null);
   const [paymentPick, setPaymentPick] = useState<string | null>(null);
   const [pickingAddress, setPickingAddress] = useState(false);
   const [pickingPayment, setPickingPayment] = useState(false);
-  const [addressDraft, setAddressDraft] = useState<AddressDraft>({ ...EMPTY_ADDRESS, recipientName: user?.name ?? "" });
-  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>({ ...EMPTY_PAYMENT, holderName: user?.name ?? "" });
+  const [addressDraft, setAddressDraft] = useState<AddressDraft>({ ...EMPTY_ADDRESS, recipientName: user.name });
+  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>({ ...EMPTY_PAYMENT, holderName: user.name });
   const [saveAddress, setSaveAddress] = useState(true);
   const [savePayment, setSavePayment] = useState(true);
-  const [email, setEmail] = useState(user?.email ?? "");
   const [cvv, setCvv] = useState("");
-  const [errors, setErrors] = useState<{ address: Errors; payment: Errors; email?: string; cvv?: string }>({ address: {}, payment: {} });
+  const [errors, setErrors] = useState<{ address: Errors; payment: Errors; cvv?: string }>({ address: {}, payment: {} });
 
   const savedAddresses = addresses.data ?? [];
   const usableMethods = (methods.data ?? []).filter((m) => !m.expired);
@@ -120,15 +119,12 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
     paymentPick === NEW ? null : usableMethods.find((m) => m.id === (paymentPick ?? usableMethods.find((x) => x.isDefault)?.id ?? usableMethods[0]?.id)) ?? null;
 
   const t = totals(lines);
-  const target: Pick<CheckoutRequest, "items" | "cartItemIds"> = cart.isGuest
-    ? { items: lines.map((l) => ({ productId: l.productId, size: l.size, quantity: l.qty })) }
-    : { cartItemIds: lines.map((l) => l.id) };
+  const cartItemIds = lines.map((l) => l.id);
 
   const checkout = useMutation({
     mutationFn: api.checkout,
     onSuccess: (order) => {
-      // Only the purchased lines leave the cart; the server already removed them for accounts.
-      if (cart.isGuest) cart.remove(lines.map((l) => l.id));
+      // The server removed only the purchased lines from the cart.
       for (const key of ["cart", "products", "product", "addresses", "payment-methods"]) queryClient.invalidateQueries({ queryKey: [key] });
       onPlaced(order);
     },
@@ -141,7 +137,6 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
         ...e,
         address: issuesToErrors(d, "shipping.address"),
         payment: issuesToErrors(d, "payment.method"),
-        email: issuesToErrors(d, "contact").email,
       }));
     },
   });
@@ -156,7 +151,7 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
     else {
       const r = validateAddress(addressDraft);
       next.address = r.errors;
-      if (r.data) shipping = { address: r.data, save: signedIn && saveAddress };
+      if (r.data) shipping = { address: r.data, save: saveAddress };
     }
     if (method) {
       // Mock card check: the CVV is validated here and never sent.
@@ -168,17 +163,14 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
     } else {
       const r = validatePayment(paymentDraft);
       next.payment = r.errors;
-      if (r.data) payment = { method: r.data, save: signedIn && savePayment };
+      if (r.data) payment = { method: r.data, save: savePayment };
     }
-    const contactEmail = signedIn ? user!.email : email.trim();
-    if (!signedIn && !/^\S+@\S+\.\S+$/.test(contactEmail)) next.email = "Enter a valid email";
-
     setErrors(next);
-    if (!shipping || !payment || next.cvv || next.email) return;
-    checkout.mutate({ ...target, contact: { email: contactEmail }, shipping, payment });
+    if (!shipping || !payment || next.cvv) return;
+    checkout.mutate({ cartItemIds, shipping, payment });
   };
 
-  if (signedIn && (addresses.isPending || methods.isPending)) return <div className="h-96 animate-pulse rounded-card bg-line" />;
+  if (addresses.isPending || methods.isPending) return <div className="h-96 animate-pulse rounded-card bg-line" />;
   const generalError = checkout.isError && (!(checkout.error instanceof ApiError) || checkout.error.status !== 400 || !checkout.error.details?.length);
 
   return (
@@ -188,21 +180,13 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
         <h1 className="text-2xl font-bold">Checkout</h1>
 
         <Section step={1} title="Contact">
-          {signedIn ? (
-            <p className="text-sm">Confirmation goes to <span className="font-medium">{user!.email}</span></p>
-          ) : (
-            <label className="block text-sm">Email
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email"
-                className={`mt-1 w-full rounded-lg border bg-surface px-3 py-2 ${errors.email ? "border-bad" : "border-line-strong"}`} />
-              {errors.email && <span className="text-xs text-bad">{errors.email}</span>}
-            </label>
-          )}
+          <p className="text-sm"><span className="font-medium">{user.name}</span> · confirmation goes to <span className="font-medium">{user.email}</span></p>
         </Section>
 
         <Section
           step={2}
           title="Shipping address"
-          action={signedIn && savedAddresses.length > 0 && !pickingAddress && <button type="button" onClick={() => setPickingAddress(true)} className={linkButton}>Change</button>}
+          action={savedAddresses.length > 0 && !pickingAddress && <button type="button" onClick={() => setPickingAddress(true)} className={linkButton}>Change</button>}
         >
           {pickingAddress ? (
             <Picker items={savedAddresses} selected={address?.id ?? NEW} render={addressSummary}
@@ -212,7 +196,7 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
           ) : (
             <>
               <AddressFields value={addressDraft} onChange={setAddressDraft} errors={errors.address} />
-              {signedIn && <SaveBox checked={saveAddress} onChange={setSaveAddress} />}
+              <SaveBox checked={saveAddress} onChange={setSaveAddress} />
             </>
           )}
         </Section>
@@ -220,7 +204,7 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
         <Section
           step={3}
           title="Payment"
-          action={signedIn && (methods.data?.length ?? 0) > 0 && !pickingPayment && <button type="button" onClick={() => setPickingPayment(true)} className={linkButton}>Change</button>}
+          action={(methods.data?.length ?? 0) > 0 && !pickingPayment && <button type="button" onClick={() => setPickingPayment(true)} className={linkButton}>Change</button>}
         >
           {pickingPayment ? (
             <Picker items={methods.data ?? []} selected={method?.id ?? NEW}
@@ -241,7 +225,7 @@ export function CheckoutForm({ cart, lines, onBack, onPlaced }: {
           ) : (
             <>
               <PaymentFields value={paymentDraft} onChange={setPaymentDraft} errors={errors.payment} />
-              {signedIn && <SaveBox checked={savePayment} onChange={setSavePayment} />}
+              <SaveBox checked={savePayment} onChange={setSavePayment} />
             </>
           )}
           <p className="mt-3 flex items-center gap-1 text-xs text-muted"><Lock className="size-3" /> Demo payment. No real charge is made.</p>

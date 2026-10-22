@@ -69,10 +69,8 @@ const orderNumber = (seq: number) => `CC-${new Date().getFullYear()}-${String(se
 const isUniqueViolation = (err: unknown) =>
   err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 
-/** A buyer's selected cart lines, or a guest's items. Cart lines must belong to the caller. */
-async function itemsToBuy(req: CheckoutPayload, buyerId?: string): Promise<{ items: CartItem[]; cartItemIds: string[] }> {
-  if (!req.cartItemIds) return { items: req.items!, cartItemIds: [] };
-  if (!buyerId) throw new HttpError(401, "Log in to check out your saved cart");
+/** The buyer's selected cart lines. They must belong to the caller. */
+async function itemsToBuy(req: CheckoutPayload, buyerId: string): Promise<{ items: CartItem[]; cartItemIds: string[] }> {
   const ids = [...new Set(req.cartItemIds)];
   const rows = await prisma.cartItem.findMany({ where: { id: { in: ids }, cart: { userId: buyerId } } });
   if (rows.length !== ids.length) throw new HttpError(409, "Some selected items are no longer in your cart. Refresh and try again.");
@@ -83,16 +81,13 @@ async function itemsToBuy(req: CheckoutPayload, buyerId?: string): Promise<{ ite
 }
 
 /** Saved address/method (must be the buyer's own) or the new one typed at checkout. */
-async function shippingAndPayment(req: CheckoutPayload, buyerId?: string) {
-  if (!buyerId && (req.shipping.addressId || req.payment.paymentMethodId)) {
-    throw new HttpError(401, "Log in to use saved addresses and payment methods");
-  }
+async function shippingAndPayment(req: CheckoutPayload, buyerId: string) {
   const address: Address = req.shipping.addressId
-    ? toAddressView(await ownedAddress(buyerId!, req.shipping.addressId))
+    ? toAddressView(await ownedAddress(buyerId, req.shipping.addressId))
     : req.shipping.address!;
   let summary: string;
   if (req.payment.paymentMethodId) {
-    const pm = await ownedPaymentMethod(buyerId!, req.payment.paymentMethodId);
+    const pm = await ownedPaymentMethod(buyerId, req.payment.paymentMethodId);
     if (pm.type === "CARD" && paymentExpired(pm.expMonth, pm.expYear)) {
       throw new HttpError(409, "That card has expired. Choose another payment method.", [{ path: "payment.paymentMethodId", message: "Card expired" }]);
     }
@@ -120,10 +115,11 @@ async function saveForNextTime(req: CheckoutPayload, buyerId: string): Promise<v
   }
 }
 
-export async function checkout(req: CheckoutPayload, buyerId?: string): Promise<Order> {
+/** Only logged-in buyers check out (the route enforces it); the confirmation goes to their account email. */
+export async function checkout(req: CheckoutPayload, buyer: { id: string; email: string }): Promise<Order> {
+  const buyerId = buyer.id;
   const { items, cartItemIds } = await itemsToBuy(req, buyerId);
   const { quote: cartQuote, sellerIds } = await priceItems(items);
-  const { contact } = req;
   const { address, summary } = await shippingAndPayment(req, buyerId);
 
   // Sequential order numbers; two simultaneous checkouts can collide, so retry on the unique index.
@@ -144,14 +140,14 @@ export async function checkout(req: CheckoutPayload, buyerId?: string): Promise<
             orderNo: orderNumber((await tx.order.count()) + attempt),
             // Derived from the shipments; every shipment starts PENDING.
             status: "PENDING",
-            email: contact.email,
+            email: buyer.email,
             name: address.recipientName,
             address: `${formatAddress(address)} · ${address.phone}`,
             shippingAddress: JSON.stringify(address),
             paymentSummary: summary,
             quote: JSON.stringify(cartQuote),
             totalCents: cartQuote.totalCents,
-            ...(buyerId && { buyer: { connect: { id: buyerId } } }),
+            buyer: { connect: { id: buyerId } },
             items: {
               create: cartQuote.lines.map((l, i) => ({
                 productId: l.productId,
@@ -163,15 +159,15 @@ export async function checkout(req: CheckoutPayload, buyerId?: string): Promise<
               })),
             },
             // Each seller ships (and gets tracking for) their own part of the order.
-            shipments: { create: initialShipments(sellerIds, buyerId ?? null) },
+            shipments: { create: initialShipments(sellerIds, buyerId) },
           },
         });
         // Only what was bought leaves the cart; unselected lines stay.
-        if (cartItemIds.length) await tx.cartItem.deleteMany({ where: { id: { in: cartItemIds } } });
+        await tx.cartItem.deleteMany({ where: { id: { in: cartItemIds } } });
         return created;
       });
       invalidateCatalog(); // Stock changed.
-      if (buyerId) await saveForNextTime(req, buyerId);
+      await saveForNextTime(req, buyerId);
       const eta = new Date(order.createdAt);
       eta.setDate(eta.getDate() + DELIVERY_DAYS);
       return {

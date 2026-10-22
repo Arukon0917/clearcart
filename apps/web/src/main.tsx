@@ -22,7 +22,7 @@ import { RequireAuth } from "./RequireAuth";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { CatalogPage } from "./pages/CatalogPage";
 import { ProductPage } from "./pages/ProductPage";
-import { CartPage } from "./pages/CartPage";
+import { CartPage, CheckoutPage } from "./pages/CartPage";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import { SellerPage } from "./pages/SellerPage";
 import { ProductFormPage } from "./pages/ProductForm";
@@ -103,8 +103,8 @@ createRoot(document.getElementById("root")!).render(
             <Routes>
               <Route path="/" element={<CatalogPage />} />
               <Route path="/p/:slug" element={<ProductPage />} />
-              {/* Checkout is a step inside the cart page, so this one guard covers both. */}
-              <Route path="/cart" element={<RequireAuth role="BUYER" allowGuest><CartPage /></RequireAuth>} />
+              <Route path="/cart" element={<RequireAuth role="BUYER" allowGuest redirectOtherRoles><CartPage /></RequireAuth>} />
+              <Route path="/checkout" element={<RequireAuth role="BUYER" redirectOtherRoles><CheckoutPage /></RequireAuth>} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/orders" element={<OrdersPage />} />
