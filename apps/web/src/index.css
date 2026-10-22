@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/* Light palette. Every colour used by components is a token here; dark mode overrides them below. */
+@theme {
+  --color-brand-50: #eef7f3;
+  --color-brand-100: #d5ede2;
+  --color-brand-600: #0f7a55;
+  --color-brand-700: #0b5f42;
+  --color-ink: #16201c;
+  --color-muted: #5b6b64;
+  --color-warn: #b45309;
+  --color-bad: #b42318;
+
+  --color-canvas: #fafaf9; /* page background */
+  --color-surface: #ffffff; /* cards, inputs, modals */
+  --color-subtle: #fafaf9; /* table heads, quiet hovers */
+  --color-raised: #f5f5f4; /* chips, tab groups, image placeholders */
+  --color-line: #e7e5e4;
+  --color-line-strong: #d6d3d1;
+  --color-line-soft: #f5f5f4;
+  --color-on-accent: #ffffff; /* text on brand / bad / caution fills */
+  --color-caution: #f59e0b;
+  --color-star: #fbbf24;
+  --color-warn-soft: #fffbeb;
+  --color-warn-line: #fcd34d;
+  --color-bad-soft: #fef2f2;
+
+  --radius-card: 1rem;
+}
+
+:root {
+  --color-shadow: rgb(0 0 0 / 0.07);
+  color-scheme: light;
+}
+
+/* Set on <html> by the inline script in index.html before the app loads. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-canvas: #0b0b0c;
+  --color-surface: #1c1c1e;
+  --color-subtle: #161618;
+  --color-raised: #2c2c2e;
+  --color-line: #2c2c2e;
+  --color-line-strong: #3a3a3c;
+  --color-line-soft: #242426;
+  --color-ink: #f5f5f7;
+  --color-muted: #86868b;
+  /* Accent: white on #2997FF is only ~3:1, so fills carry near-black text instead. */
+  --color-brand-50: #0f1f33;
+  --color-brand-100: #13304f;
+  --color-brand-600: #2997ff;
+  --color-brand-700: #5ab0ff;
+  --color-on-accent: #0b0b0c;
+  --color-warn: #ffb340;
+  --color-bad: #ff6961;
+  --color-caution: #ffb340;
+  --color-warn-soft: #2a2110;
+  --color-warn-line: #6b4e12;
+  --color-bad-soft: #2a1515;
+  --color-shadow: rgb(0 0 0 / 0.5);
+}
+
+/* #86868B on a raised chip is ~3.9:1; lift muted text inside chips to keep it above 4.5:1. */
+[data-theme="dark"] .bg-raised {
+  --color-muted: #a1a1a6;
+}
+
+/* Dark-mode logo: the slide-deck gradient across the whole word (the "Cart" span included). */
+[data-theme="dark"] .logo {
+  background: linear-gradient(90deg, #2997ff, #a78bfa);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  font-weight: 800;
+}
+[data-theme="dark"] .logo * {
+  color: transparent;
+}
+
+body {
+  @apply bg-canvas text-ink antialiased;
+}
+
+:focus-visible {
+  @apply outline-2 outline-offset-2 outline-brand-600;
+}

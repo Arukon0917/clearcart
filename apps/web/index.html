@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ClearCart — honest shopping</title>
+    <script>
+      // Set the theme before the app (and its CSS) loads, so dark mode never flashes white.
+      // The saved choice ("cc_theme") wins; otherwise follow the system setting.
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem("cc_theme"); } catch (e) {}
+        if (t !== "light" && t !== "dark") t = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        document.documentElement.dataset.theme = t;
+      })();
+    </script>
+    <style>
+      /* Paints the right background before the stylesheet arrives. */
+      html { background: #fafaf9; }
+      html[data-theme="dark"] { background: #0b0b0c; color-scheme: dark; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

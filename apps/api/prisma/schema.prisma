@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+// SQLite keeps hackathon setup to zero. To deploy on Postgres, change provider and url.
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Seller {
+  id          String    @id
+  name        String
+  onTimeRate  Float
+  returnRate  Float
+  products    Product[]
+  /// Set when the seller registered an account; seeded sellers have none.
+  userId      String?   @unique
+  user        User?     @relation(fields: [userId], references: [id])
+  shipments   Shipment[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  /// "BUYER" | "SELLER" (SQLite has no enums)
+  role         String
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+  seller       Seller?
+  orders       Order[]
+  reviews      Review[]
+  sessions     Session[]
+  cart         Cart?
+  addresses      Address[]
+  paymentMethods PaymentMethod[]
+}
+
+/// Saved shipping address (max 5 per user, exactly one default). Orders keep their own snapshot.
+model Address {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Home | Work | Other
+  label         String
+  recipientName String
+  phone         String
+  line1         String
+  line2         String?
+  postcode      String
+  city          String
+  state         String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Saved payment method (max 5 per user, exactly one default). Never holds a full card number or CVV.
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// CARD | FPX | EWALLET
+  type        String
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  // CARD
+  brand       String?
+  last4       String?
+  expMonth    Int?
+  expYear     Int?
+  holderName  String?
+  /// Mock processor token ("pm_…"); stands in for what a real gateway would return.
+  token       String?
+  // FPX
+  bankName    String?
+  // EWALLET
+  provider    String?
+  maskedPhone String?
+
+  @@index([userId])
+}
+
+/// Logged-in users' carts live only here; guests keep theirs in localStorage until they log in.
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+}
+
+model CartItem {
+  id              String   @id @default(cuid())
+  cartId          String
+  cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// "" for products without sizes: SQLite treats NULLs as distinct, which would break the unique index.
+  size            String   @default("")
+  qty             Int
+  selected        Boolean  @default(true)
+  /// Unit price when added; a different current price shows as price_changed.
+  addedPriceCents Int
+  addedAt         DateTime @default(now())
+
+  @@unique([cartId, productId, size])
+}
+
+/// One row per refresh token. Only the sha256 of the token is stored.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model Product {
+  id            String         @id
+  slug          String         @unique
+  name          String
+  brand         String
+  category      String
+  description   String
+  imageHue      Int
+  /// Comma-separated tag keys (SQLite has no arrays).
+  tags          String
+  priceCents    Int
+  shippingCents Int
+  sellerId      String
+  seller        Seller         @relation(fields: [sellerId], references: [id])
+  variants      Variant[]
+  reviews       Review[]
+  fitFeedback   FitFeedback[]
+  digest        ReviewDigest?
+  /// Seller-uploaded photos. Seeded products have none and fall back to imageHue art.
+  images        ProductImage[]
+  cartItems     CartItem[]
+  /// DRAFT | ACTIVE | ARCHIVED. Only ACTIVE products are in the catalog and search.
+  status        String         @default("DRAFT")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+
+  @@index([sellerId, status])
+}
+
+model ProductImage {
+  id          String  @id @default(cuid())
+  productId   String
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url         String
+  alt         String?
+  isThumbnail Boolean @default(false)
+  sortOrder   Int
+
+  @@index([productId])
+}
+
+model Variant {
+  id        String  @id @default(cuid())
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  size      String
+  stock     Int
+  position  Int
+
+  @@unique([productId, size])
+}
+
+model Review {
+  id              String   @id @default(cuid())
+  productId       String
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author          String
+  rating          Int
+  title           String
+  body            String
+  verified        Boolean
+  isSuspicious    Boolean
+  suspicionReason String?
+  createdAt       DateTime
+  /// Set for reviews written by a buyer account; seeded reviews have none.
+  /// One review per buyer per product is enforced in reviewRoutes (a unique index would make db push warn).
+  buyerId         String?
+  buyer           User?    @relation(fields: [buyerId], references: [id])
+
+  @@index([productId, buyerId])
+}
+
+model FitFeedback {
+  id            String  @id @default(cuid())
+  productId     String
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  heightCm      Int
+  weightKg      Int
+  usualSize     String
+  /// "small" | "true" | "large"
+  fit           String
+}
+
+model ReviewDigest {
+  productId       String  @id
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  summary         String
+  /// JSON-encoded string[]
+  pros            String
+  /// JSON-encoded string[]
+  cons            String
+  suspiciousCount Int
+  /// "heuristic" | "claude"
+  generatedBy     String
+}
+
+model Order {
+  id            String   @id @default(cuid())
+  /// "CC-2026-000123". Optional only because orders placed before tracking existed have none.
+  orderNo       String?  @unique
+  /// null for guest checkout
+  buyerId       String?
+  buyer         User?    @relation(fields: [buyerId], references: [id])
+  email         String
+  name          String
+  address       String
+  /// JSON snapshot of the shipping address at checkout; later edits to saved addresses never change it.
+  shippingAddress String?
+  /// e.g. "Visa •••• 4242", "FPX · Maybank2u". Never card data beyond brand + last 4.
+  paymentSummary  String?
+  /// JSON-encoded CartQuote
+  quote         String
+  totalCents    Int
+  /// PLACED | PACKED | SHIPPED | OUT_FOR_DELIVERY | DELIVERED
+  status        String   @default("PLACED")
+  trackingNo    String?
+  createdAt     DateTime @default(now())
+  items         OrderItem[]
+  /// Legacy order-level history from before per-seller shipments; copied into ShipmentEvent by backfill.
+  events        OrderEvent[]
+  shipments     Shipment[]
+
+  @@index([buyerId])
+}
+
+/// One per (order, seller): each seller ships their own part of an order.
+/// Order.status is derived from these (see deriveOrderStatus) and never edited directly.
+model Shipment {
+  id           String          @id @default(cuid())
+  orderId      String
+  order        Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  sellerId     String
+  seller       Seller          @relation(fields: [sellerId], references: [id])
+  /// PENDING | PROCESSING | SHIPPED | OUT_FOR_DELIVERY | DELIVERED | CANCELLED
+  status       String          @default("PENDING")
+  courier      String?
+  trackingNo   String?
+  cancelReason String?
+  shippedAt    DateTime?
+  deliveredAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @default(now()) @updatedAt
+  events       ShipmentEvent[]
+
+  @@unique([orderId, sellerId])
+  @@index([sellerId, status])
+}
+
+model ShipmentEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  status      String
+  note        String?
+  /// Seller (or buyer at checkout) who made the change; null for guests and backfilled history.
+  actorUserId String?
+  createdAt   DateTime @default(now())
+
+  @@index([shipmentId])
+}
+
+/// Snapshot of what was bought, so later product edits don't rewrite order history.
+model OrderItem {
+  id         String  @id @default(cuid())
+  orderId    String
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId  String
+  sellerId   String
+  name       String
+  size       String?
+  qty        Int
+  priceCents Int
+
+  @@index([sellerId])
+}
+
+model OrderEvent {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String
+  note      String
+  createdAt DateTime @default(now())
+}

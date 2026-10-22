@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ClearCart — honest shopping</title>
+<style>
+  :root { --brand:#0f7a55; --brand-d:#0b5f42; --brand-l:#e6f4ee; --ink:#16201c; --muted:#5b6b64; --line:#e7e5e4; --bad:#b42318; --warn:#b45309; --bg:#fafaf9; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, -apple-system, Segoe UI, sans-serif; color:var(--ink); background:var(--bg); }
+  a { color:inherit; text-decoration:none; }
+  button, input, select { font:inherit; }
+  button { cursor:pointer; }
+  :focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+  header { position:sticky; top:0; z-index:20; background:#fffe; backdrop-filter:blur(6px); border-bottom:1px solid var(--line); }
+  .wrap { max-width:1100px; margin:0 auto; padding:0 16px; }
+  header .wrap { display:flex; justify-content:space-between; align-items:center; height:58px; }
+  .logo { font-weight:800; font-size:20px; } .logo span { color:var(--brand); }
+  .cartbtn { position:relative; font-size:22px; padding:6px; }
+  .count { position:absolute; top:-2px; right:-6px; background:var(--brand); color:#fff; font-size:11px; font-weight:700; border-radius:99px; padding:1px 6px; }
+  main { padding:24px 0 140px; }
+  .hero { background:linear-gradient(135deg,var(--brand-l),#fff); border-radius:18px; padding:32px 24px; }
+  .hero h1 { margin:0; font-size:clamp(24px,4vw,38px); }
+  .hero p { color:var(--muted); max-width:560px; }
+  .search { display:flex; gap:8px; max-width:640px; margin-top:16px; }
+  .search input { flex:1; min-width:0; padding:12px 16px; border:1px solid #d6d3d1; border-radius:12px; }
+  .btn { background:var(--brand); color:#fff; border:0; border-radius:12px; padding:12px 18px; font-weight:600; }
+  .btn:hover { background:var(--brand-d); } .btn:disabled { opacity:.5; cursor:not-allowed; }
+  .btn.ghost { background:#fff; color:var(--ink); border:1px solid #d6d3d1; }
+  .examples { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .pill { border:1px solid var(--line); background:#fff; border-radius:99px; padding:4px 12px; color:var(--muted); font-size:13px; }
+  .toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:20px 0 14px; }
+  .chip { background:var(--brand-l); color:var(--brand-d); border:0; border-radius:99px; padding:4px 12px; font-weight:600; font-size:13px; text-transform:capitalize; }
+  .toolbar select { margin-left:auto; padding:6px 10px; border-radius:8px; border:1px solid #d6d3d1; background:#fff; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:16px; padding:12px; display:flex; flex-direction:column; transition:box-shadow .2s; }
+  .card:hover { box-shadow:0 8px 24px #0001; }
+  .img { aspect-ratio:1; border-radius:14px; display:grid; place-items:center; font-size:64px; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .badge { display:inline-block; border-radius:99px; padding:3px 10px; font-size:12px; font-weight:700; color:#fff; border:0; }
+  .good { background:var(--brand); } .mid { background:#d97706; } .low { background:var(--bad); }
+  .muted { color:var(--muted); font-size:13px; }
+  .price { font-size:20px; font-weight:800; }
+  .card h3 { margin:8px 0 2px; font-size:15px; }
+  .pd { display:grid; grid-template-columns:1fr 1fr; gap:32px; }
+  @media (max-width:760px){ .pd { grid-template-columns:1fr; } }
+  .box { background:#fff; border:1px solid var(--line); border-radius:16px; padding:16px; margin-top:16px; }
+  .box.tint { background:var(--brand-l); border-color:#cfe9dd; }
+  .bar { height:6px; background:#f0efed; border-radius:9px; margin-top:4px; } .bar > div { height:100%; border-radius:9px; }
+  .sizes { display:flex; flex-wrap:wrap; gap:8px; }
+  .size { min-width:44px; padding:8px 10px; border:1px solid #d6d3d1; border-radius:10px; background:#fff; }
+  .size.on { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .size:disabled { opacity:.35; text-decoration:line-through; cursor:not-allowed; }
+  .fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  label { font-size:13px; }
+  .fields input, .fields select { width:100%; margin-top:4px; padding:9px 11px; border:1px solid #d6d3d1; border-radius:9px; background:#fff; }
+  input.err { border-color:var(--bad); } .errmsg { color:var(--bad); font-size:12px; }
+  .review { border:1px solid var(--line); background:#fff; border-radius:12px; padding:10px 12px; margin-top:8px; font-size:14px; }
+  .review.sus { background:#fffbeb; border-color:#fcd34d; }
+  .alert { background:#fffbeb; color:var(--warn); border-radius:10px; padding:8px 12px; font-size:14px; margin-top:10px; }
+  .drawer { position:fixed; inset:auto 0 0 0; background:#fffffff2; backdrop-filter:blur(6px); border-top:1px solid var(--line); box-shadow:0 -8px 30px #0001; z-index:30; }
+  .drawer .wrap { padding:12px 16px; }
+  .tablewrap { overflow-x:auto; max-height:55vh; margin-top:10px; }
+  table { width:100%; min-width:560px; border-collapse:collapse; font-size:14px; }
+  td, th { padding:8px; text-align:left; border-top:1px solid #f0efed; vertical-align:top; }
+  .best { color:var(--brand-d); font-weight:700; }
+  .checkout { display:grid; grid-template-columns:1fr 360px; gap:28px; }
+  @media (max-width:860px){ .checkout { grid-template-columns:1fr; } }
+  .summary { position:sticky; top:76px; height:fit-content; }
+  .qty button { border:1px solid #d6d3d1; background:#fff; border-radius:6px; width:24px; }
+  .center { text-align:center; padding:60px 0; }
+  .link { background:none; border:0; color:var(--muted); text-decoration:underline; padding:0; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <a href="#/" class="logo">Clear<span>Cart</span></a>
+  <a href="#/cart" class="cartbtn" aria-label="Cart">🛒<span id="count" class="count" hidden></span></a>
+</div></header>
+<main class="wrap" id="app"></main>
+<div id="drawer"></div>
+
+<script>
+// ---------- data (deterministic, so every demo looks the same) ----------
+let seed = 20261022;
+const rnd = () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const int = (a, b) => Math.floor(rnd() * (b - a + 1)) + a;
+const pick = xs => xs[Math.floor(rnd() * xs.length)];
+const clamp = (n, a = 0, b = 100) => Math.min(b, Math.max(a, n));
+const TAX = 0.08;
+const ICON = { shoes: "👟", apparel: "👕", bags: "🎒", tech: "🎧" };
+const SIZES = { shoes: ["6","7","8","9","10","11","12"], apparel: ["XS","S","M","L","XL"] };
+const TAGS = { running:"Running", trail:"Trail", "wide-fit":"Wide fit", waterproof:"Waterproof", vegan:"Vegan", lightweight:"Lightweight", cushioned:"Cushioned", "organic-cotton":"Organic cotton", laptop:"Fits a laptop", travel:"Travel", wireless:"Wireless", "noise-cancelling":"Noise cancelling" };
+
+const SELLERS = {
+  northwind: { name: "Northwind Outfitters", onTime: .97, returns: .04 },
+  peakpine: { name: "Peak & Pine", onTime: .94, returns: .06 },
+  lumen: { name: "Lumen Goods", onTime: .96, returns: .05 },
+  quickdeal: { name: "QuickDeal Hub", onTime: .74, returns: .19 },
+  bargainblitz: { name: "BargainBlitz", onTime: .66, returns: .27 },
+};
+
+// [name, category, tags, price$, shipping$, seller, quality, genuine, fakes, fitBias(-1 small,0,1 large), hue, description]
+const RAW = [
+  ["Stride Cloudline Wide Runner","shoes",["running","wide-fit","cushioned"],84,0,"northwind",.88,28,0,0,150,"Cushioned daily runner on a genuinely wide last with a roomy toe box."],
+  ["Aerofoot Pace Wide","shoes",["running","wide-fit","lightweight"],79,5.99,"bargainblitz",.42,16,12,-1,20,"Lightweight runner marketed for wide feet. Firm, responsive sole."],
+  ["Trailborn Ridge Wide Trail","shoes",["running","trail","wide-fit","waterproof"],89,0,"peakpine",.8,22,1,-1,95,"Waterproof wide-fit trail runner with aggressive lugs."],
+  ["Kinetic Nova Daily Trainer","shoes",["running","cushioned"],124,0,"northwind",.85,25,0,0,210,"A do-it-all trainer with a balanced, cushioned ride."],
+  ["Solace Zen Everyday Sneaker","shoes",["vegan","lightweight"],69,7.99,"quickdeal",.55,14,5,1,300,"Clean, lightweight sneaker made without animal materials."],
+  ["Northloom Organic Cotton Tee","apparel",["organic-cotton"],28,0,"peakpine",.82,19,0,0,40,"Soft, breathable tee in certified organic cotton."],
+  ["Kinetic Flux Rain Shell","apparel",["waterproof","lightweight","travel"],139,0,"lumen",.84,21,0,-1,190,"Packable waterproof shell that folds into its own pocket."],
+  ["Hearth & Hem Fleece Hoodie","apparel",["vegan"],59,9.99,"bargainblitz",.45,12,9,1,330,"Cosy recycled-fleece hoodie."],
+  ["Packwell Commuter Backpack","bags",["laptop","waterproof"],98,0,"northwind",.86,24,0,0,230,"Weatherproof backpack with a padded 16\" laptop sleeve."],
+  ["Driftway Weekender Duffel","bags",["travel"],74,7.99,"quickdeal",.52,15,6,0,25,"Carry-on duffel with a separate shoe compartment."],
+  ["Auralis Halo ANC Headphones","tech",["wireless","noise-cancelling"],189,0,"lumen",.87,30,1,0,260,"Over-ear headphones with adaptive noise cancelling."],
+  ["Voltix Pulse Wireless Earbuds","tech",["wireless"],49,5.99,"bargainblitz",.4,14,11,0,0,"Compact earbuds with a pocketable charging case."],
+];
+
+const GOOD = ["Super comfortable right out of the box.","Great value for the price.","The materials feel premium.","Still holding up after months of daily use.","Arrived quickly and well packaged."];
+const BAD = ["Not comfortable after an hour of wear.","Overpriced for what you get.","Stitching came loose quickly.","Wore out much faster than I expected.","Delivery took two weeks longer than promised."];
+const ASPECT = [["Comfort",/comfort/i],["Value",/value|price|overpriced/i],["Quality",/material|stitching|premium/i],["Durability",/holding up|wore out/i],["Shipping",/arrived|delivery/i]];
+const FIT_TXT = { "-1": "Runs a bit small, I had to size up.", "0": "Fits exactly as expected.", "1": "Runs large, size down if between sizes." };
+const FAKES = ["Best product ever!!! Highly recommend!!!","Amazing amazing amazing. Five stars!!!","Love it!!! 10/10 would buy again!!!"];
+const NAMES = ["Maya","Jonas","Priya","Lee","Sofia","Omar","Hana","Diego","Ava","Kenji","Zara","Theo"];
+
+// Fake-review heuristic: duplicate text, hype punctuation, unverified short 5-stars.
+function flagReviews(reviews) {
+  const norm = s => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const counts = {}; reviews.forEach(r => counts[norm(r.body)] = (counts[norm(r.body)] || 0) + 1);
+  reviews.forEach(r => {
+    const s = [];
+    if (counts[norm(r.body)] > 1) s.push([2, "Same text posted by several accounts"]);
+    if (/!{3,}/.test(r.body)) s.push([1, "Excessive hype punctuation"]);
+    if (!r.verified && r.rating === 5 && r.body.length < 60) s.push([1.5, "Short 5-star review, no confirmed purchase"]);
+    else if (!r.verified) s.push([0.5, "No confirmed purchase"]);
+    const score = s.reduce((a, x) => a + x[0], 0);
+    r.sus = score >= 2; r.why = r.sus ? s.sort((a, b) => b[0] - a[0])[0][1] : null;
+  });
+}
+
+const products = RAW.map(([name, cat, tags, price, ship, seller, q, genuine, fakes, bias, hue, desc], i) => {
+  const reviews = [];
+  for (let k = 0; k < genuine; k++) {
+    const rating = clamp(Math.round(1 + q * 4 + (rnd() - .5) * 2.4), 1, 5);
+    const pool = rating >= 4 ? GOOD : rating <= 2 ? BAD : [...GOOD, ...BAD];
+    let body = pick(pool) + " " + pick(pool);
+    if (SIZES[cat] && rnd() < .4) body += " " + FIT_TXT[bias];
+    reviews.push({ author: pick(NAMES) + " " + String.fromCharCode(65 + int(0, 25)) + ".", rating, body, verified: rnd() < .9 });
+  }
+  for (let k = 0; k < fakes; k++) reviews.push({ author: pick(NAMES) + " " + String.fromCharCode(65 + int(0, 25)) + ".", rating: 5, body: pick(FAKES), verified: false });
+  reviews.sort(() => rnd() - .5);
+  flagReviews(reviews);
+  const fit = SIZES[cat] ? Array.from({ length: int(20, 50) }, () => {
+    const h = int(152, 196), r = rnd();
+    const [s, t] = bias === -1 ? [.78, .2] : bias === 1 ? [.04, .2] : [.1, .8];
+    return { h, w: clamp(Math.round(h - 105 + (rnd() - .5) * 30), 45, 120), fit: r < s ? "small" : r < s + t ? "true" : "large" };
+  }) : null;
+  const sizes = (SIZES[cat] || []).map(s => ({ s, stock: rnd() > .12 }));
+  const item = price * 100 - 1, shipping = Math.round(ship * 100), tax = Math.round(item * TAX);
+  return { id: "p" + (i + 1), name, cat, tags, seller, desc, hue, reviews, fit, sizes, item, shipping, tax, allIn: item + shipping + tax };
+});
+
+// ---------- scoring (every number explains itself) ----------
+const pct = n => Math.round(n * 100) + "%";
+function combine(parts) {
+  const tw = parts.reduce((a, p) => a + p.w, 0);
+  parts.forEach(p => p.w /= tw);
+  return { score: Math.round(parts.reduce((a, p) => a + p.score * p.w, 0)), parts };
+}
+const sellerReviews = {};
+products.forEach(p => { const a = sellerReviews[p.seller] ||= { v: 0, t: 0 }; a.t += p.reviews.length; a.v += p.reviews.filter(r => r.verified).length; });
+function trust(id) {
+  const s = SELLERS[id], r = sellerReviews[id], vr = r.v / r.t;
+  return combine([
+    { label: "On-time delivery", score: Math.round(s.onTime * 100), w: .45, why: `${pct(s.onTime)} of orders arrived on time.` },
+    { label: "Return rate", score: clamp(Math.round(100 - s.returns * 250)), w: .3, why: `${pct(s.returns)} of orders were returned.` },
+    { label: "Verified reviews", score: Math.round(vr * 100), w: .25, why: `${pct(vr)} of reviews are from confirmed purchases.` },
+  ]);
+}
+const median = xs => { const s = [...xs].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+function fitStats(fb) { return { small: fb.filter(f => f.fit === "small").length, true: fb.filter(f => f.fit === "true").length, large: fb.filter(f => f.fit === "large").length, n: fb.length }; }
+
+products.forEach(p => {
+  const sus = p.reviews.filter(r => r.sus).length, total = p.reviews.length, genuine = p.reviews.filter(r => !r.sus);
+  p.susCount = sus;
+  p.rating = genuine.length ? genuine.reduce((a, r) => a + r.rating, 0) / genuine.length : 0;
+  p.genuineCount = genuine.length;
+  p.trust = trust(p.seller);
+  const med = median(products.filter(x => x.cat === p.cat).map(x => x.allIn)), ratio = p.allIn / med;
+  const parts = [
+    { label: "Review authenticity", score: Math.round((total - sus) / total * 100), w: .35, why: sus ? `${sus} of ${total} reviews look fake and are excluded.` : `All ${total} reviews look genuine.` },
+    { label: "Seller trust", score: p.trust.score, w: .25, why: `${SELLERS[p.seller].name} scores ${p.trust.score}/100.` },
+    { label: "Price fairness", score: clamp(Math.round(100 - (ratio - .8) * 100), 20, 100), w: .2, why: `$${Math.abs((p.allIn - med) / 100).toFixed(0)} ${ratio <= 1 ? "below" : "above"} the typical all-in price.` },
+  ];
+  if (p.fit) {
+    const st = fitStats(p.fit), dom = Math.max(st.small, st.true, st.large), agree = dom / st.n;
+    const verdict = dom === st.true ? "true to size" : dom === st.small ? "small" : "large";
+    parts.splice(2, 0, { label: "Fit confidence", score: Math.round(agree * Math.min(1, .4 + st.n / 50) * 100), w: .2, why: `${pct(agree)} of ${st.n} buyers say it runs ${verdict}.` });
+  }
+  p.clarity = combine(parts);
+  // Review digest: what genuine buyers praise and complain about.
+  const tally = list => ASPECT.map(([a, re]) => [a, list.filter(r => re.test(r.body)).length]).filter(x => x[1]).sort((a, b) => b[1] - a[1]);
+  p.pros = tally(genuine.filter(r => r.rating >= 4)).slice(0, 3).map(([a, n]) => `${a} (praised by ${n})`);
+  p.cons = tally(genuine.filter(r => r.rating <= 2)).slice(0, 2).map(([a, n]) => `${a} (${n} complaints)`);
+});
+
+function recommendFit(p, h, w, usual) {
+  const scale = p.sizes.map(s => s.s), idx = scale.indexOf(usual);
+  const similar = p.fit.filter(f => Math.abs(f.h - h) <= 8 && Math.abs(f.w - w) <= 10);
+  const pool = similar.length >= 5 ? similar : p.fit, who = similar.length >= 5 ? `${pool.length} buyers with a similar build` : `${pool.length} buyers`;
+  const st = fitStats(pool), lean = (st.large - st.small) / st.n;
+  const dir = lean <= -.25 ? 1 : lean >= .25 ? -1 : 0;
+  const agree = (dir === 1 ? st.small : dir === -1 ? st.large : st.true) / st.n;
+  return {
+    size: scale[clamp(idx + dir, 0, scale.length - 1)],
+    conf: clamp(Math.round(agree * Math.min(1, .5 + st.n / 40) * 100), 0, 99),
+    why: dir === 0 ? `${pct(agree)} of ${who} said it runs true to size.` : `${pct(agree)} of ${who} said it runs ${dir === 1 ? "small, so go up" : "large, so go down"} one size.`,
+  };
+}
+
+// ---------- smart search (rule-based; the full app swaps in Claude) ----------
+function parseQuery(text) {
+  const t = text.toLowerCase(), f = {};
+  const max = t.match(/(?:under|below|less than|max|up to)\s*\$?(\d+)/); if (max) f.maxPrice = +max[1];
+  const min = t.match(/(?:over|above|more than|at least)\s*\$?(\d+)/); if (min) f.minPrice = +min[1];
+  const cats = { shoes: /shoe|sneaker|boot|runner|trainer/, apparel: /shirt|tee|jacket|hoodie|shell|clothes/, bags: /bag|backpack|duffel|tote/, tech: /headphone|earbud|tech|speaker/ };
+  for (const c in cats) if (cats[c].test(t)) { f.category = c; break; }
+  const tagRe = { running: /\brun(ning)?\b|jog/, trail: /trail|hik/, "wide-fit": /\bwide\b/, waterproof: /waterproof|rain/, vegan: /vegan/, lightweight: /\blight/, cushioned: /cushion|comfy/, laptop: /laptop/, travel: /travel|trip/, wireless: /wireless|bluetooth/, "noise-cancelling": /noise|anc\b/ };
+  const tags = Object.keys(tagRe).filter(k => tagRe[k].test(t)); if (tags.length) f.tags = tags;
+  if (/cheap|budget|affordable/.test(t)) f.sort = "price";
+  if (/best|trusted|honest|reliable/.test(t)) { f.minClarity = 70; f.sort = "clarity"; }
+  if (!Object.keys(f).length) f.q = text.trim();
+  return f;
+}
+
+// ---------- state ----------
+const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const S = { filters: {}, cart: store.get("cc-cart", []), compare: store.get("cc-compare", []), size: null, fitRes: null, showSus: false, open: null, drawerOpen: false, errors: {}, order: null, query: "" };
+const save = () => { store.set("cc-cart", S.cart); store.set("cc-compare", S.compare); };
+const byId = id => products.find(p => p.id === id);
+const money = c => "$" + (c / 100).toFixed(2);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const tone = s => s >= 75 ? "good" : s >= 55 ? "mid" : "low";
+const stars = n => "★".repeat(n) + "☆".repeat(5 - n);
+const img = (p, size = "") => `<div class="img" style="background:linear-gradient(135deg,hsl(${p.hue} 60% 92%),hsl(${(p.hue + 40) % 360} 55% 82%));${size}" aria-hidden="true">${ICON[p.cat]}</div>`;
+
+function quote(lines) {
+  const sub = lines.reduce((a, l) => a + byId(l.id).item * l.qty, 0), ship = lines.reduce((a, l) => a + byId(l.id).shipping, 0), tax = Math.round(sub * TAX);
+  return { sub, ship, tax, total: sub + ship + tax };
+}
+
+// ---------- views ----------
+function breakdown(b, key) {
+  return S.open !== key ? "" : `<div class="box">${b.parts.map(c => `
+    <div style="margin-bottom:10px"><div class="row"><b style="font-size:14px">${c.label}</b><span class="muted">${c.score} · ${Math.round(c.w * 100)}% weight</span></div>
+    <div class="bar"><div class="${tone(c.score)}" style="width:${c.score}%"></div></div><div class="muted">${c.why}</div></div>`).join("")}</div>`;
+}
+
+function card(p) {
+  const on = S.compare.includes(p.id);
+  return `<article class="card">
+    <a href="#/p/${p.id}">${img(p)}
+      <div class="row" style="margin-top:10px"><span class="badge ${tone(p.clarity.score)}">Clarity ${p.clarity.score}</span><span class="muted">⭐ <b style="color:var(--ink)">${p.rating.toFixed(1)}</b> (${p.genuineCount} genuine)</span></div>
+      <h3>${p.name}</h3><div class="muted">Sold by ${SELLERS[p.seller].name}</div></a>
+    <div class="row" style="margin-top:auto;padding-top:10px;align-items:end">
+      <div><div class="price">${money(p.allIn)}</div><div class="muted">Price you pay · incl. shipping & tax</div></div>
+      <label class="muted"><input type="checkbox" ${on ? "checked" : ""} ${!on && S.compare.length >= 4 ? "disabled" : ""} onchange="toggleCompare('${p.id}')"> Compare</label>
+    </div></article>`;
+}
+
+function catalog() {
+  const f = S.filters;
+  let list = products.filter(p => (!f.category || p.cat === f.category) && (!f.maxPrice || p.allIn <= f.maxPrice * 100) && (!f.minPrice || p.allIn >= f.minPrice * 100)
+    && (!f.tags || f.tags.every(t => p.tags.includes(t))) && (!f.minClarity || p.clarity.score >= f.minClarity) && (!f.q || p.name.toLowerCase().includes(f.q.toLowerCase())));
+  const sort = f.sort || "trust";
+  list.sort(sort === "price" ? (a, b) => a.allIn - b.allIn : sort === "price-desc" ? (a, b) => b.allIn - a.allIn : sort === "clarity" ? (a, b) => b.clarity.score - a.clarity.score : (a, b) => (b.clarity.score + b.rating * 5) - (a.clarity.score + a.rating * 5));
+  const chips = [];
+  if (f.category) chips.push(["category", f.category]);
+  if (f.maxPrice) chips.push(["maxPrice", `Under $${f.maxPrice} all-in`]);
+  if (f.minPrice) chips.push(["minPrice", `Over $${f.minPrice}`]);
+  if (f.minClarity) chips.push(["minClarity", `Clarity ${f.minClarity}+`]);
+  if (f.q) chips.push(["q", `"${f.q}"`]);
+  (f.tags || []).forEach(t => chips.push(["tag:" + t, TAGS[t]]));
+  const ex = ["running shoes under $100 for wide feet", "trusted noise cancelling headphones", "cheapest waterproof backpack"];
+  return `<section class="hero"><h1>Shop with nothing hidden.</h1>
+    <p>Fake reviews filtered out, sizes predicted from real buyers, and the price you see is the price you pay.</p>
+    <form class="search" onsubmit="event.preventDefault();search(this.q.value)">
+      <label for="q" hidden>Describe what you want</label><input id="q" name="q" value="${esc(S.query)}" placeholder="Describe what you want…" autocomplete="off"><button class="btn">✨ Search</button></form>
+    <div class="examples">${ex.map(e => `<button class="pill" onclick="search('${e}')">${e}</button>`).join("")}</div></section>
+  <div class="toolbar">${chips.length ? `<span class="muted">Search understood:</span>` : ""}
+    ${chips.map(([k, l]) => `<button class="chip" onclick="removeChip('${k}')" aria-label="Remove ${esc(l)}">${esc(l)} ✕</button>`).join("")}
+    ${chips.length ? `<button class="link" onclick="S.filters={};S.query='';render()">Clear all</button>` : ""}
+    <select aria-label="Sort" onchange="S.filters.sort=this.value;render()">
+      ${[["trust", "Most trustworthy"], ["price", "Price: low to high"], ["price-desc", "Price: high to low"], ["clarity", "Clarity Score"]].map(([v, l]) => `<option value="${v}" ${sort === v ? "selected" : ""}>${l}</option>`).join("")}
+    </select></div>
+  <div class="grid">${list.map(card).join("")}</div>
+  ${list.length ? "" : `<p class="center muted">Nothing matches every filter. Remove a chip above.</p>`}`;
+}
+
+function product(p) {
+  const sus = S.showSus ? p.reviews : p.reviews.filter(r => !r.sus);
+  const fr = S.fitRes;
+  return `<div class="pd"><div>${img(p, "font-size:140px")}</div><div>
+    <div class="muted">${p.cat}</div><h1 style="margin:0">${p.name}</h1>
+    <div class="row" style="justify-content:start;margin-top:8px">
+      <button class="badge ${tone(p.clarity.score)}" onclick="toggleOpen('clarity')" aria-expanded="${S.open === "clarity"}">Clarity ${p.clarity.score} ▾</button>
+      <span class="muted">⭐ <b style="color:var(--ink)">${p.rating.toFixed(1)}</b> from ${p.genuineCount} genuine reviews</span></div>
+    ${breakdown(p.clarity, "clarity")}
+    <p class="muted" style="font-size:15px">${p.desc}</p>
+    <div class="box"><div class="price" style="font-size:30px">${money(p.allIn)}</div><div class="muted">Price you pay. No surprises at checkout.</div>
+      <div class="row" style="margin-top:10px"><span>Item ${money(p.item)}</span><span>Shipping ${p.shipping ? money(p.shipping) : "Free"}</span><span>Tax ${money(p.tax)}</span></div></div>
+    ${p.sizes.length ? `<div style="margin-top:16px"><b>Size</b><div class="sizes" style="margin-top:8px">${p.sizes.map(s => `<button class="size ${S.size === s.s ? "on" : ""}" ${s.stock ? "" : "disabled"} onclick="S.size='${s.s}';render()">${s.s}</button>`).join("")}</div></div>
+      <form class="box tint" onsubmit="event.preventDefault();runFit(this)"><b>📏 Find my size</b>
+        <div class="fields" style="margin-top:10px"><label>Height (cm)<input name="h" type="number" value="175" min="120" max="230"></label>
+        <label>Weight (kg)<input name="w" type="number" value="70" min="30" max="200"></label>
+        <label>Usual size<select name="u">${p.sizes.map(s => `<option ${s.s === (p.cat === "shoes" ? "8" : "M") ? "selected" : ""}>${s.s}</option>`).join("")}</select></label></div>
+        <button class="btn" style="margin-top:10px;background:var(--ink)">Recommend a size</button>
+        ${fr ? `<p role="status"><b style="font-size:18px">Size ${fr.size}</b> <b style="color:var(--brand-d)">· ${fr.conf}% confident</b><br><span class="muted">${fr.why}</span></p>` : ""}</form>` : ""}
+    <div class="row" style="margin-top:16px"><button class="btn" style="flex:1" ${p.sizes.length && !S.size ? "disabled" : ""} onclick="addToCart('${p.id}')">${p.sizes.length && !S.size ? "Pick a size" : "Add to cart"}</button>
+      <button class="btn ghost" onclick="toggleCompare('${p.id}')">${S.compare.includes(p.id) ? "Comparing ✓" : "Compare"}</button></div>
+    <p><button class="link" style="color:var(--ink)" onclick="toggleOpen('trust')">✅ Sold by <b>${SELLERS[p.seller].name}</b> · trust ${p.trust.score}/100</button></p>
+    ${breakdown(p.trust, "trust")}
+    <div class="box"><b>Review digest</b><p style="margin:4px 0">Honest rating ${p.rating.toFixed(1)}★ from ${p.genuineCount} genuine reviews.</p>
+      <div class="row" style="align-items:start"><div>${p.pros.map(x => `<div>👍 ${x}</div>`).join("") || ""}</div><div>${p.cons.map(x => `<div>👎 ${x}</div>`).join("")}</div></div>
+      ${p.susCount ? `<div class="alert">🛡️ ${p.susCount} suspicious review${p.susCount > 1 ? "s" : ""} filtered out of the rating</div>` : ""}</div>
+    <div class="row" style="margin-top:20px"><b>Reviews</b>${p.susCount ? `<label class="muted"><input type="checkbox" ${S.showSus ? "checked" : ""} onchange="S.showSus=this.checked;render()"> Show filtered</label>` : ""}</div>
+    ${sus.slice(0, 12).map(r => `<div class="review ${r.sus ? "sus" : ""}"><div class="row"><span>${stars(r.rating)}</span><span class="muted">${r.verified ? "Verified purchase" : "Unverified"}</span></div>
+      <div>${r.body}</div><div class="muted">${r.author}${r.sus ? ` · <span style="color:var(--warn)">Flagged: ${r.why}</span>` : ""}</div></div>`).join("")}
+  </div></div>`;
+}
+
+const FIELDS = [["Contact", "email", "Email", "email"], ["Contact", "name", "Full name", "name"], ["Shipping", "address", "Street address", "street-address"], ["Shipping", "city", "City", "address-level2"],
+  ["Shipping", "postal", "Postal code", "postal-code"], ["Payment", "card", "Card number", "cc-number", "4242 4242 4242 4242"], ["Payment", "exp", "Expiry", "cc-exp", "MM/YY"], ["Payment", "cvc", "CVC", "cc-csc"]];
+const RULES = { email: [/^\S+@\S+\.\S+$/, "Enter a valid email"], name: [/^.{2,}$/, "Enter your full name"], address: [/^.{5,}$/, "Enter a street address"], city: [/^.{2,}$/, "Enter a city"],
+  postal: [/^[A-Za-z0-9 -]{3,10}$/, "Enter a valid postal code"], card: [/^\d{12,19}$/, "Enter a valid card number"], exp: [/^(0[1-9]|1[0-2])\/\d{2}$/, "Use MM/YY"], cvc: [/^\d{3,4}$/, "3–4 digits"] };
+
+function cart() {
+  if (S.order) return `<div class="box center" style="max-width:440px;margin:0 auto"><div style="font-size:48px">✅</div><h1>Order placed</h1>
+    <p class="muted">Confirmation sent to ${esc(S.order.email)}</p><div class="price" style="font-size:30px">${money(S.order.total)}</div>
+    <p class="muted">Exactly what we showed you. Arrives in 4 days.</p><a class="btn" href="#/" onclick="S.order=null">Keep shopping</a></div>`;
+  if (!S.cart.length) return `<p class="center muted">Your cart is empty. <a href="#/" style="color:var(--brand);text-decoration:underline">Start shopping</a></p>`;
+  const q = quote(S.cart);
+  return `<form class="checkout" onsubmit="event.preventDefault();placeOrder(this)" novalidate><div>
+    <h1 style="margin-top:0">Checkout <span class="muted" style="font-weight:400">· guest, one page</span></h1>
+    ${["Contact", "Shipping", "Payment"].map((sec, i) => `<fieldset class="box" style="margin-top:12px"><legend><b>${i + 1}. ${sec}</b></legend><div class="fields">
+      ${FIELDS.filter(f => f[0] === sec).map(([, k, l, ac, ph]) => `<label>${l}<input name="${k}" autocomplete="${ac}" ${ph ? `placeholder="${ph}"` : ""} class="${S.errors[k] ? "err" : ""}" value="${esc(S.errors._v?.[k] ?? "")}">${S.errors[k] ? `<span class="errmsg">${S.errors[k]}</span>` : ""}</label>`).join("")}
+      </div>${sec === "Payment" ? `<p class="muted">🔒 Demo payment. Your card is never stored.</p>` : ""}</fieldset>`).join("")}
+  </div><aside class="box summary"><b>Order summary</b>
+    ${S.cart.map((l, i) => `<div class="row" style="margin-top:10px;font-size:14px"><span>${byId(l.id).name}${l.size ? ` <span class="muted">· ${l.size}</span>` : ""}</span>
+      <span class="qty"><button type="button" onclick="qty(${i},-1)" aria-label="Decrease">−</button> ${l.qty} <button type="button" onclick="qty(${i},1)" aria-label="Increase">+</button></span></div>`).join("")}
+    <hr style="border:0;border-top:1px solid var(--line);margin:14px 0">
+    <div class="row"><span>Subtotal</span><span>${money(q.sub)}</span></div><div class="row"><span>Shipping</span><span>${q.ship ? money(q.ship) : "Free"}</span></div>
+    <div class="row"><span>Tax</span><span>${money(q.tax)}</span></div><div class="row price" style="margin-top:8px"><span>Total</span><span>${money(q.total)}</span></div>
+    <button class="btn" style="width:100%;margin-top:14px">Pay ${money(q.total)}</button></aside></form>`;
+}
+
+function drawer() {
+  const items = S.compare.map(byId);
+  if (!items.length) return "";
+  const rows = [["Price you pay", p => p.allIn, p => money(p.allIn), "min"], ["Clarity Score", p => p.clarity.score, p => p.clarity.score, "max"],
+    ["Honest rating", p => p.rating, p => p.rating.toFixed(1) + "★", "max"], ["Fake reviews", p => p.susCount, p => p.susCount, "min"], ["Seller trust", p => p.trust.score, p => `${p.trust.score} · ${SELLERS[p.seller].name}`, "max"]];
+  return `<div class="drawer"><div class="wrap"><div class="row"><button class="link" style="color:var(--ink);text-decoration:none;font-weight:700" onclick="S.drawerOpen=!S.drawerOpen;render()">${S.drawerOpen ? "▾" : "▴"} Compare ${items.length} item${items.length > 1 ? "s" : ""}</button>
+    <button class="link" onclick="S.compare=[];save();render()">Clear</button></div>
+    ${S.drawerOpen ? `<div class="tablewrap"><table><tr><th></th>${items.map(p => `<th><a href="#/p/${p.id}">${p.name}</a> <button class="link" onclick="toggleCompare('${p.id}')" aria-label="Remove">✕</button></th>`).join("")}</tr>
+      ${rows.map(([l, v, fmt, b]) => { const vals = items.map(v), best = b === "min" ? Math.min(...vals) : Math.max(...vals);
+        return `<tr><th class="muted">${l}</th>${items.map(p => `<td class="${items.length > 1 && v(p) === best ? "best" : ""}">${fmt(p)}${items.length > 1 && v(p) === best ? " ✓" : ""}</td>`).join("")}</tr>`; }).join("")}
+    </table></div>` : ""}</div></div>`;
+}
+
+// ---------- actions ----------
+function search(text) { S.query = text; S.filters = parseQuery(text); location.hash = "#/"; render(); }
+function removeChip(k) { if (k.startsWith("tag:")) S.filters.tags = S.filters.tags.filter(t => t !== k.slice(4)); else delete S.filters[k]; if (S.filters.tags && !S.filters.tags.length) delete S.filters.tags; render(); }
+function toggleCompare(id) { S.compare = S.compare.includes(id) ? S.compare.filter(x => x !== id) : [...S.compare, id].slice(-4); save(); render(); }
+function toggleOpen(k) { S.open = S.open === k ? null : k; render(); }
+function runFit(f) { const p = byId(route().id); S.fitRes = recommendFit(p, +f.h.value, +f.w.value, f.u.value); S.size = S.fitRes.size; render(); }
+function addToCart(id) { const l = S.cart.find(x => x.id === id && x.size === S.size); l ? l.qty = Math.min(10, l.qty + 1) : S.cart.push({ id, size: S.size, qty: 1 }); save(); location.hash = "#/cart"; }
+function qty(i, d) { S.cart[i].qty += d; if (S.cart[i].qty <= 0) S.cart.splice(i, 1); S.cart[i] && (S.cart[i].qty = Math.min(10, S.cart[i].qty)); save(); render(); }
+function placeOrder(form) {
+  const v = Object.fromEntries(new FormData(form)); v.card = (v.card || "").replace(/\s/g, "");
+  const errors = {}; for (const k in RULES) if (!RULES[k][0].test((v[k] || "").trim())) errors[k] = RULES[k][1];
+  if (Object.keys(errors).length) { S.errors = { ...errors, _v: v }; render(); return; }
+  S.order = { email: v.email, total: quote(S.cart).total }; S.cart = []; S.errors = {}; save(); render();
+}
+
+// ---------- router ----------
+function route() { const [, page, id] = location.hash.split("/"); return { page: page || "", id }; }
+let lastRoute = "";
+function render() {
+  const r = route(), key = r.page + r.id;
+  if (key !== lastRoute) { S.size = null; S.fitRes = null; S.showSus = false; S.open = null; lastRoute = key; scrollTo(0, 0); }
+  const app = document.getElementById("app");
+  app.innerHTML = r.page === "p" && byId(r.id) ? product(byId(r.id)) : r.page === "cart" ? cart() : catalog();
+  document.getElementById("drawer").innerHTML = drawer();
+  const n = S.cart.reduce((a, l) => a + l.qty, 0), c = document.getElementById("count");
+  c.hidden = !n; c.textContent = n;
+}
+addEventListener("hashchange", render);
+render();
+</script>
+</body>
+</html>
